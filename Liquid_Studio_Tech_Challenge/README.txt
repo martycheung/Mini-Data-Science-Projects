@@ -1,0 +1,1 @@
+Data used was a merged and cleaned version of the raw flight data. Raw flight data can be found here: http://www.anac.gov.br/assuntos/dados-e-estatisticas/historico-de-voos
