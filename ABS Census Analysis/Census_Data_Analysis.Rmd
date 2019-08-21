@@ -1,0 +1,183 @@
+---
+title: "Census Data Analysis"
+output:
+  html_notebook:
+    code_folding: hide
+    highlight: zenburn
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  html_document:
+    toc: yes
+---
+
+<!-- Dynamic width for wide code chunks -->
+
+<style>
+
+div.main-container {
+    max-width: 1500px;
+}
+
+</style>
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+library(dplyr)
+library(readr)
+
+```
+
+Population Age Breakdown
+
+```{r}
+
+# Read in demographic data from Census
+age_breakdown_a <- read.csv("C:\\Users\\martin.cheung\\Desktop\\NBN Network Assurance POC\\2016 Census GCP All Geographies for AUST\\SA1\\AUST\\2016Census_G04A_AUS_SA1.csv") 
+age_breakdown_b <- read.csv("C:\\Users\\martin.cheung\\Desktop\\NBN Network Assurance POC\\2016 Census GCP All Geographies for AUST\\SA1\\AUST\\2016Census_G04B_AUS_SA1.csv") 
+
+# Ages Broken into 2 csv's 
+# Choose columns for Persons in general
+select_a <- names(age_breakdown_a)[nchar(names(age_breakdown_a)) < 12]
+age_breakdown_a <- age_breakdown_a %>% 
+  select(SA1_7DIGITCODE_2016,select_a) %>% 
+  select(SA1_7DIGITCODE_2016,ends_with("P"))
+
+select_b <- names(age_breakdown_b)[nchar(names(age_breakdown_b)) < 12]
+age_breakdown_b <- age_breakdown_b %>% 
+  select(SA1_7DIGITCODE_2016,select_b,Tot_P) %>% 
+  select(SA1_7DIGITCODE_2016,ends_with("P"))
+
+orig_age <- age_breakdown_a %>% left_join(age_breakdown_b,"SA1_7DIGITCODE_2016")
+
+age_temp <- orig_age
+
+rm(age_breakdown_a, age_breakdown_b)
+
+# Multiply each population of the age bracket by the age. (eg. number of people aged 45 times 45)
+for (i in 0:79){
+  # i = 0
+  age_temp[, (i+2)] <- age_temp[, (i+2)] * i
+  
+}
+
+sum_ages <- rowSums(age_temp[, 2:81])
+total_pop <- rowSums(orig_age[, 2:81])
+
+ave_age_by_postcode <- data.frame(SA1_7DIGITCODE_2016=age_temp$SA1_7DIGITCODE_2016, Average_Age= sum_ages/total_pop )
+
+```
+
+Total Population Size by Postcode
+
+```{r}
+
+total_pop_by_postcode <- data.frame(SA1_7DIGITCODE_2016=age_temp$SA1_7DIGITCODE_2016, orig_age$Tot_P)
+
+```
+
+Size of Household (number of occupants)
+
+```{r}
+
+household_composition <- read.csv("C:\\Users\\martin.cheung\\Desktop\\NBN Network Assurance POC\\2016 Census GCP All Geographies for AUST\\SA1\\AUST\\2016Census_G31_AUS_SA1.csv") 
+
+# COunt of occupants in each household
+household_residents <- household_composition %>% 
+  select(-contains("FamHhold"))
+
+# Convert to percentage
+household_residents_pct <- household_residents
+for(i in 2:7){
+  household_residents_pct[, i] <- household_residents[, i]/household_residents[,8]
+}
+
+household_residents_pct <- household_residents_pct[, 1:7]
+colnames(household_residents_pct)[2:7] <- paste0('pct_', colnames(household_residents_pct)[2:7])
+
+```
+
+Dwelling Structure
+
+```{r}
+
+dwelling_structure <- read.csv("C:\\Users\\martin.cheung\\Desktop\\NBN Network Assurance POC\\2016 Census GCP All Geographies for AUST\\SA1\\AUST\\2016Census_G32_AUS_SA1.csv") 
+
+# Choose Dewlling (insted of persons)
+dwelling_structure <- dwelling_structure %>% 
+  select(SA1_7DIGITCODE_2016,"OPDs_Separate_house_Dwellings","OPDs_Separate_house_Persons","OPDs_Dwlling_structur_NS_Dwgs","OPDs_Dwlling_structur_NS_Psns",matches("Tot")) %>% 
+  select(-contains("Total"))
+
+```
+
+Key Median Values
+
+```{r}
+
+median_metrics <- read.csv("C:\\Users\\martin.cheung\\Desktop\\NBN Network Assurance POC\\2016 Census GCP All Geographies for AUST\\SA1\\AUST\\2016Census_G02_AUS_SA1.csv") 
+
+```
+
+Labour Force Status / Employment / Occupation + Total Population
+
+```{r}
+
+employment <- read.csv("C:\\Users\\martin.cheung\\Desktop\\NBN Network Assurance POC\\2016 Census GCP All Geographies for AUST\\SA1\\AUST\\2016Census_G43B_AUS_SA1.csv") 
+
+employment <-  employment %>% 
+  select(SA1_7DIGITCODE_2016,P_Tot_Emp_Tot,P_Tot_Unemp_Tot,P_Unem_look_FTW_Tot,P_Unem_look_PTW_Tot,P_Tot_LF_Tot)
+
+
+employment$Unemployment_rate <- (employment$P_Unem_look_FTW_Tot + employment$P_Unem_look_PTW_Tot)/employment$P_Tot_LF_Tot
+
+```
+
+Tenure (owned outright, rented etc)
+
+```{r}
+
+tenure_type <- read.csv("C:\\Users\\martin.cheung\\Desktop\\NBN Network Assurance POC\\2016 Census GCP All Geographies for AUST\\SA1\\AUST\\2016Census_G33_AUS_SA1.csv")
+
+tenure_type <- tenure_type %>% 
+  select(SA1_7DIGITCODE_2016,contains("_Total")) %>% 
+  select(-starts_with("R"),"R_Tot_Total")
+
+```
+
+Internet Accessed From Dwelling
+
+```{r}
+
+internet <- read.csv("C:\\Users\\martin.cheung\\Desktop\\NBN Network Assurance POC\\2016 Census GCP All Geographies for AUST\\SA1\\AUST\\2016Census_G37_AUS_SA1.csv")
+
+orig_internet <- internet %>% 
+  select(SA1_7DIGITCODE_2016,ends_with("Total"))
+
+pct_internet <- orig_internet
+
+# Percentage of internet accessed from dwelling
+for(i in 2:4){
+  pct_internet[, i] <- pct_internet[, i]/rowSums(orig_internet[,2:4])
+}
+
+pct_internet <- pct_internet[, 1:4]
+colnames(pct_internet)[2:4] <- paste0('pct_', colnames(pct_internet)[2:4])
+
+
+```
+
+Merge All Tables Together
+
+```{r}
+
+selected_table <- median_metrics %>% 
+  left_join(employment[,c("SA1_7DIGITCODE_2016","Unemployment_rate")]) #%>% 
+  # left_join(tenure_type) %>% 
+  # total_pop_by_postcode %>%
+  # left_join(pct_internet)
+  
+write.csv(selected_table,"C:\\Users\\martin.cheung\\Desktop\\NBN Network Assurance POC\\Census Viz\\selected_data.csv")
+
+```
+
